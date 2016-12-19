@@ -1,10 +1,10 @@
 var drawmsg = {
-	A: {fmt: ["i4:id", "i4:imageid", "i4:fillid", "i1:public"], handler: drawallocscreen},
-	b: {fmt: ["i4:id", "i4:screenid", "i1:refresh", "b4:chan", "i1:repl", "b16:r", "b16:clipr", "b4:color"], handler: drawallocate},
-	d: {fmt: ["i4:dstid", "i4:srcid", "i4:maskid", "b16:dstr", "b8:srcp", "b8:maskp"], handler: drawdraw},
-	f: {fmt: ["i4:id"], handler: drawfree},
-	n: {fmt: ["i4:id", "S1:n"], handler: drawname},
-	y: {fmt: ["i4:id", "b16:r", "R:buf"], handler: drawload},
+	A: {fmt: ["i4:id", "i4:imageid", "i4:fillid", "i1:public"], handler: drawallocscreen, size: 13},
+	b: {fmt: ["i4:id", "i4:screenid", "i1:refresh", "b4:chan", "i1:repl", "b16:r", "b16:clipr", "b4:color"], handler: drawallocate, size: 50},
+	d: {fmt: ["i4:dstid", "i4:srcid", "i4:maskid", "b16:dstr", "b8:srcp", "b8:maskp"], handler: drawdraw, size: 44},
+	f: {fmt: ["i4:id"], handler: drawfree, size: 4},
+	n: {fmt: ["i4:id", "S1:n"], handler: drawname, size: 5},
+	y: {fmt: ["i4:id", "b16:r", "R:buf"], handler: drawload, size: 20},
 };
 
 var disp = {id: 0, r: [0, 0, 500, 500], chan: "r8g8b8a8", repl: 0, refresh: 0};
@@ -79,18 +79,33 @@ function drawctlread(f, p) {
 }
 
 function drawdatawrite(f, p) {
-	var t, s, m;
+	var t, s, m, i, l;
 
-	t = p.data[0];
-	if(drawmsg[t] == undefined){
-		writeterminal("unknown message " + t + "\n");
-		return error9p(p.tag, "unknown message " + t);
+	i = 0;
+	l = p.data.length;
+	while(i < l){
+		t = p.data[i];
+		i++;
+		if(drawmsg[t] == undefined){
+			writeterminal("unknown message " + t + "\n");
+			return error9p(p.tag, "unknown message " + t);
+		}
+		m = unpack(p.data.substring(i), drawmsg[t].fmt);
+//		print(t + " " + JSON.stringify(m) + "\n");
+		s = drawmsg[t].handler(conns[f.f.parent.id], m);
+		if(s != "" && s != undefined)
+			return error9p(p.tag, s);
+		i += drawmsg[t].size;
+		switch(t){
+		case 'n':
+			i += m.n.length;
+		default:
+			break;
+		case 'y':
+			i += m.buf.length;
+			break;
+		}
 	}
-	m = unpack(p.data.substring(1), drawmsg[t].fmt);
-//	print(t + " " + JSON.stringify(m) + "\n");
-	s = drawmsg[t].handler(conns[f.f.parent.id], m);
-	if(s != "" && s != undefined)
-		return error9p(p.tag, s);
 	respond(p, -1);
 }
 
